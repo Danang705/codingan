@@ -1,4 +1,5 @@
 import psycopg2
+from datetime import datetime
 
 def koneksi_db():
     return psycopg2.connect(
@@ -269,11 +270,89 @@ def MenuAdmin():
 def MenuPengguna(id_cust):
     while True:
         print("\n=== Menu Pengguna ===")
-        print("1. Lihat Riwayat Booking")
-        print("2. Logout")
+        print("1. Pesan Booking")
+        print("2. Lihat Riwayat Booking")
+        print("3. Logout")
         pilihan = input("Pilih: ")
 
         if pilihan == "1":
+            try:
+                conn = koneksi_db()
+                cursor = conn.cursor()
+
+                # Tampilkan kapster yang tersedia
+                cursor.execute("SELECT id_kapster, nama FROM kapster WHERE status = 'Tersedia'")
+                kapsters = cursor.fetchall()
+
+                if not kapsters:
+                    print("Maaf, tidak ada kapster tersedia saat ini.")
+                    continue
+
+                print("\n=== Kapster Tersedia ===")
+                for k in kapsters:
+                    print(f"{k[0]}. {k[1]}")
+
+                id_kapster = int(input("Pilih ID Kapster: "))
+
+                # Tampilkan layanan
+                cursor.execute("SELECT id_layanan, nama_layanan, deskripsi, harga FROM layanan")
+                layanans = cursor.fetchall()
+
+                print("\n=== Daftar Layanan ===")
+                for l in layanans:
+                    print(f"{l[0]}. {l[1]} - {l[2]} - Rp{l[3]:,.0f}")
+
+                id_layanan = int(input("Pilih ID Layanan: "))
+                kuantitas = int(input("Jumlah layanan (kuantitas): "))
+                tanggal_input = input("Masukkan Tanggal Booking (YYYY-MM-DD HH:MM): ")
+                tanggal_booking = datetime.strptime(tanggal_input, "%Y-%m-%d %H:%M")
+
+                # Ambil harga layanan
+                cursor.execute("SELECT harga FROM layanan WHERE id_layanan = %s", (id_layanan,))
+                harga = cursor.fetchone()[0]
+                total = harga * kuantitas
+
+                # Insert pembayaran dummy dulu (status default "Belum Lunas")
+                cursor.execute("""
+                    INSERT INTO pembayaran (tanggal_pembayaran, jumlah_pembayaran, status_pembayaran)
+                    VALUES (%s, %s, %s) RETURNING id_pembayaran
+                """, (datetime.now(), total, 'Belum Lunas'))
+                id_pembayaran = cursor.fetchone()[0]
+
+                # Insert booking (status "menunggu" diasumsikan id_status = 1)
+                cursor.execute("""
+                    SELECT id_status FROM status_booking WHERE nama_status ILIKE 'menunggu' LIMIT 1
+                """)
+                hasil = cursor.fetchone()
+                if hasil:
+                    id_status = hasil[0]
+                else:
+                    # Insert status menunggu jika belum ada
+                    cursor.execute("INSERT INTO status_booking (nama_status) VALUES ('menunggu') RETURNING id_status")
+                    id_status = cursor.fetchone()[0]
+
+                cursor.execute("""
+                    INSERT INTO booking (tanggal_booking, id_cust, id_kapster, id_status, id_pembayaran)
+                    VALUES (%s, %s, %s, %s, %s) RETURNING id_booking
+                """, (tanggal_booking, id_cust, id_kapster, id_status, id_pembayaran))
+                id_booking = cursor.fetchone()[0]
+
+                # Insert ke detail_booking
+                cursor.execute("""
+                    INSERT INTO detail_booking (id_booking, id_layanan, kuantitas, total_harga)
+                    VALUES (%s, %s, %s, %s)
+                """, (id_booking, id_layanan, kuantitas, total))
+
+                conn.commit()
+                print("Booking berhasil dilakukan!")
+
+                cursor.close()
+                conn.close()
+
+            except Exception as e:
+                print("Gagal memproses booking:", e)
+
+        elif pilihan == "2":
             try:
                 conn = koneksi_db()
                 cursor = conn.cursor()
@@ -284,23 +363,28 @@ def MenuPengguna(id_cust):
                     JOIN status_booking sb ON b.id_status = sb.id_status
                     JOIN kapster k ON b.id_kapster = k.id_kapster
                     WHERE b.id_cust = %s
+                    ORDER BY b.tanggal_booking DESC
                 """, (id_cust,))
                 riwayat = cursor.fetchall()
 
-                print("=== Riwayat Booking ===")
-                for r in riwayat:
-                    print(f"ID: {r[0]}, Tanggal: {r[1]}, Status: {r[2]}, Kapster: {r[3]}")
+                if riwayat:
+                    print("\n=== Riwayat Booking ===")
+                    for r in riwayat:
+                        print(f"ID: {r[0]}, Tanggal: {r[1]}, Status: {r[2]}, Kapster: {r[3]}")
+                else:
+                    print("Belum ada riwayat booking.")
 
                 cursor.close()
                 conn.close()
             except Exception as e:
                 print("Gagal menampilkan riwayat:", e)
 
-        elif pilihan == "2":
+        elif pilihan == "3":
             print("Logout Pengguna...")
             break
         else:
             print("Pilihan tidak valid.")
+
 
 # Program Utama
 # if __name__ == "__main__":

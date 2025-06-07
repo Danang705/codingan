@@ -9,10 +9,78 @@ def koneksi_db():
         password="12345"
     )
 
+def MenuCustomer ():
+    print("=== Menu Pengguna ===")
+    print("1. Daftar Pengguna Baru")
+    print("2. Login Pengguna")
+    sub_pilihan = input("Masukkan Pilihan: ")
+    if sub_pilihan == "1":
+        daftarPenggunaBaru ()
+    elif sub_pilihan == "2":
+        login_pengguna()
+    else:
+        print ("Input Tidak Ada")
+    
+
+
+def daftarPenggunaBaru ():
+    print("=== Daftar Pengguna Baru ===")
+    nama = input("Nama: ")
+    username = input("Username: ")
+    password = input("Password: ")
+    email = input("Email: ")
+    no_telp = input("No. Telepon: ")
+
+    try:
+        conn = koneksi_db()
+        cursor = conn.cursor()
+
+        query = """
+            INSERT INTO customer (nama, username, password, email, no_telp)
+            VALUES (%s, %s, %s, %s, %s)
+        """
+        data = (nama, username, password, email, no_telp)
+        cursor.execute(query, data)
+        conn.commit()
+
+        print("Pendaftaran berhasil. Silakan login.")
+    except Exception as e:
+        print("Terjadi kesalahan saat mendaftar:", e)
+    finally:
+        cursor.close()
+        conn.close()  
+
+def login_pengguna():
+    username = input("Masukkan Username Pengguna: ")
+    password = input("Masukkan Password: ")
+
+    try:
+        conn = koneksi_db()
+        cursor = conn.cursor()
+
+        query = "SELECT * FROM customer WHERE username = %s AND password = %s"
+        cursor.execute(query, (username, password))
+        user = cursor.fetchone()
+
+        if user:
+            print(f"Login berhasil sebagai Pengguna: {user[1]}")
+            MenuPengguna(user[0])  # Asumsinya user[0] adalah ID user
+        else:
+            print("Username atau password pengguna salah.")
+    except Exception as e:
+        print("Terjadi kesalahan:", e)
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+
 def login():
     print("=== Menu Login ===")
     print("1. Login Admin")
-    print("2. Login Pengguna")
+    print("2. Menu Pengguna")
     pilihan = input("Masukkan Pilihan: ")
 
     if pilihan == "1":
@@ -38,35 +106,15 @@ def login():
             print("Terjadi kesalahan:", e)
 
     elif pilihan == "2":
-        username = input("Masukkan Username Pengguna: ")
-        password = input("Masukkan Password: ")
-
-        try:
-            conn = koneksi_db()
-            cursor = conn.cursor()
-
-            cursor.execute("SELECT * FROM customer WHERE username = %s AND password = %s", (username, password))
-            user = cursor.fetchone()
-
-            if user:
-                print(f"Login berhasil sebagai Pengguna: {user[1]}")
-                MenuPengguna(user[0])
-            else:
-                print("Username atau password pengguna salah.")
-
-            cursor.close()
-            conn.close()
-        except Exception as e:
-            print("Terjadi kesalahan:", e)
-    else:
-        print("Input tidak valid.")
+        MenuCustomer()
 
 def MenuAdmin():
     while True:
         print("\n=== Menu Admin ===")
         print("1. Lihat Data Kapster")
         print("2. Lihat Semua Booking & Ubah Status")
-        print("3. Logout")
+        print("3. Riwayat Pembayaran")
+        print("4. Logout")
         pilihan = input("Masukkan Pilihan: ")
 
         if pilihan == "1":
@@ -174,10 +222,49 @@ def MenuAdmin():
                 print("Gagal memproses booking:", e)
 
         elif pilihan == "3":
+
+            try:
+                conn = koneksi_db()
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT p.id_pembayaran, p.tanggal_pembayaran, p.jumlah_pembayaran, p.status_pembayaran,
+                        c.nama, b.id_booking
+                    FROM pembayaran p
+                    JOIN booking b ON p.id_pembayaran = b.id_pembayaran
+                    JOIN customer c ON b.id_cust = c.id_cust
+                """)
+                pembayaran = cursor.fetchall()
+
+                print("=== Riwayat Pembayaran ===")
+                for p in pembayaran:
+                    print(f"ID: {p[0]}, Tanggal: {p[1]}, Jumlah: {p[2]}, Status: {p[3]}, Customer: {p[4]}, ID Booking: {p[5]}")
+
+                ubah = input("Ubah status pembayaran? (y/n): ").lower()
+                if ubah == "y":
+                    id_pembayaran = input("ID Pembayaran: ")
+                    print("1. Lunas")
+                    print("2. Belum Lunas")
+                    status_input = input("Pilih Status Baru (1/2): ")
+                    status_baru = "Lunas" if status_input == "1" else "Belum Lunas"
+
+                    cursor.execute("UPDATE pembayaran SET status_pembayaran = %s WHERE id_pembayaran = %s",
+                                (status_baru, id_pembayaran))
+                    conn.commit()
+                    print("Status pembayaran berhasil diperbarui.")
+
+                cursor.close()
+                conn.close()
+            except Exception as e:
+                print("Gagal memproses riwayat pembayaran:", e)
+
+
+        elif pilihan == "4":
             print("Logout Admin...")
             break
         else:
             print("Pilihan tidak valid.")
+
 
 def MenuPengguna(id_cust):
     while True:
@@ -216,5 +303,5 @@ def MenuPengguna(id_cust):
             print("Pilihan tidak valid.")
 
 # Program Utama
-if __name__ == "__main__":
-    login()
+# if __name__ == "__main__":
+login()

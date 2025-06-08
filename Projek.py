@@ -309,9 +309,9 @@ def MenuPengguna(id_cust):
 
                 # Insert booking
                 cursor.execute("""
-                    INSERT INTO booking (tanggal_booking, id_cust, id_kapster, id_pembayaran, id_admin)
-                    VALUES (%s, %s, %s, %s, %s) RETURNING id_booking
-                """, (tanggal_booking, id_cust, id_kapster, id_pembayaran, id_admin))
+                    INSERT INTO booking (tanggal_booking, id_cust, id_kapster, id_pembayaran)
+                    VALUES (%s, %s, %s, %s) RETURNING id_booking
+                """, (tanggal_booking, id_cust, id_kapster, id_pembayaran))
                 id_booking = cursor.fetchone()[0]
 
                 # Insert detail_booking
